@@ -1,0 +1,145 @@
+.resellers-container {
+  padding: 1rem;
+}
+
+.resellers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.resellers-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-color);
+}
+
+.resellers-info {
+  background: var(--card-bg);
+  border-left: 4px solid var(--primary-color);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}
+
+.resellers-info p {
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.resellers-info p:first-child {
+  margin-top: 0;
+}
+
+.resellers-info p:last-child {
+  margin-bottom: 0;
+}
+
+.resellers-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card-bg);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.resellers-table thead {
+  background: var(--primary-color);
+  color: white;
+}
+
+.resellers-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.resellers-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.resellers-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.resellers-table tbody tr:hover {
+  background: var(--hover-bg);
+}
+
+.resellers-table .actions-cell {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.no-results {
+  text-align: center;
+  padding: 3rem 1rem;
+  background: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.no-results p {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.message {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.message-success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message-error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Dark mode */
+.dark-mode .resellers-info {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dark-mode .resellers-table {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dark-mode .resellers-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark-mode .no-results {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dark-mode .message-success {
+  background: rgba(40, 167, 69, 0.2);
+  color: #90ee90;
+  border-color: rgba(40, 167, 69, 0.4);
+}
+
+.dark-mode .message-error {
+  background: rgba(220, 53, 69, 0.2);
+  color: #ff6b6b;
+  border-color: rgba(220, 53, 69, 0.4);
+}

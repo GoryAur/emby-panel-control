@@ -1,0 +1,18 @@
+---
+services:
+  emby-panel:
+    image: goryaur4/emby-panel-control:latest
+    container_name: emby-panel
+    environment:
+      - TZ=Etc/UTC
+      - EMBY_SERVER_URL=http://localhost:8096
+      - EMBY_API_KEY=your_api_key_here
+      - CRON_SECRET=your_secret_here
+      - ADMIN_USERNAME=admin #optional
+      - ADMIN_PASSWORD=admin123 #optional
+      - BASE_URL=http://localhost:44444 #optional
+    volumes:
+      - /path/to/emby-panel-data:/app/data
+    ports:
+      - 44444:44444
+    restart: unless-stopped

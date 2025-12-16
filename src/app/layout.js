@@ -1,0 +1,28 @@
+import './globals.css';
+
+export const metadata = {
+  title: 'Panel de Control - Emby',
+  description: 'Panel de administración para gestionar usuarios de Emby',
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="es" suppressHydrationWarning className="dark-mode">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const savedMode = localStorage.getItem('darkMode');
+                if (savedMode === 'false') {
+                  document.documentElement.classList.remove('dark-mode');
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
+      <body suppressHydrationWarning>{children}</body>
+    </html>
+  );
+}

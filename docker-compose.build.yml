@@ -1,0 +1,24 @@
+---
+# Use this file to build the image locally from source
+services:
+  emby-panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: emby-panel-control:latest
+    container_name: emby-panel
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - EMBY_SERVER_URL=http://localhost:8096
+      - EMBY_API_KEY=your_api_key_here
+      - CRON_SECRET=your_secret_here
+      - ADMIN_USERNAME=admin #optional
+      - ADMIN_PASSWORD=admin123 #optional
+      - BASE_URL=http://localhost:44444 #optional
+    volumes:
+      - /path/to/emby-panel/config:/app/data
+    ports:
+      - 44444:44444
+    restart: unless-stopped
