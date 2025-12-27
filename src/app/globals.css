@@ -90,9 +90,23 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .header h1 {
   font-size: 28px;
   color: #2c3e50;
+  margin: 0;
 }
 
 .header-actions {
@@ -668,6 +682,21 @@ body {
   color: #666;
 }
 
+/* Emby Connect Icon */
+.emby-connect-icon {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 14px;
+  opacity: 0.7;
+  vertical-align: middle;
+  cursor: help;
+  transition: opacity 0.2s ease;
+}
+
+.emby-connect-icon:hover {
+  opacity: 1;
+}
+
 .server-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -1205,8 +1234,17 @@ body {
     z-index: 100;
   }
 
+  .header-title {
+    gap: 12px;
+  }
+
+  .header-logo {
+    width: 36px;
+    height: 36px;
+  }
+
   .header h1 {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .stats {
@@ -1288,6 +1326,11 @@ body {
 @media (min-width: 480px) and (max-width: 599px) {
   .container {
     padding: 16px;
+  }
+
+  .header-logo {
+    width: 40px;
+    height: 40px;
   }
 
   .header h1 {
@@ -1632,6 +1675,14 @@ body {
 .dark-mode .badge-secondary {
   background: #3a3a3a;
   color: #a0a0a0;
+}
+
+.dark-mode .emby-connect-icon {
+  opacity: 0.8;
+}
+
+.dark-mode .emby-connect-icon:hover {
+  opacity: 1;
 }
 
 .dark-mode .server-badge {

@@ -15,29 +15,39 @@ function hashPassword(password) {
  * Inicializa el usuario admin por defecto si no existe
  */
 function ensureDefaultAdmin() {
-  const db = getDatabase();
+  try {
+    const db = getDatabase();
 
-  // Leer credenciales desde variables de entorno
-  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    // Leer credenciales desde variables de entorno
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-  const admin = db.prepare('SELECT id FROM panel_users WHERE username = ?').get(adminUsername);
+    const admin = db.prepare('SELECT id FROM panel_users WHERE username = ?').get(adminUsername);
 
-  if (!admin) {
-    const id = generateId();
-    const stmt = db.prepare(`
-      INSERT INTO panel_users (id, username, password_hash, name, role)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    if (!admin) {
+      const id = generateId();
+      const stmt = db.prepare(`
+        INSERT INTO panel_users (id, username, password_hash, name, role)
+        VALUES (?, ?, ?, ?, ?)
+      `);
 
-    stmt.run(id, adminUsername, hashPassword(adminPassword), 'Administrador', 'admin');
+      stmt.run(id, adminUsername, hashPassword(adminPassword), 'Administrador', 'admin');
 
-    console.log(`[Auth] Usuario admin creado: ${adminUsername}`);
+      console.log(`[Auth] Usuario admin creado: ${adminUsername}`);
+    }
+  } catch (error) {
+    // Ignorar error de UNIQUE constraint durante build paralelo
+    if (error.code !== 'SQLITE_CONSTRAINT_UNIQUE') {
+      console.error('[Auth] Error al crear usuario admin:', error);
+    }
   }
 }
 
 // Asegurar que existe el admin por defecto
-ensureDefaultAdmin();
+// Solo ejecutar en runtime, no durante build
+if (process.env.NODE_ENV !== 'test' && typeof window === 'undefined') {
+  ensureDefaultAdmin();
+}
 
 /**
  * Verifica las credenciales del usuario

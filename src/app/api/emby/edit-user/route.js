@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { updateUser } from '@/lib/emby';
+import { updateUser, linkEmbyConnect, unlinkEmbyConnect } from '@/lib/emby';
 import { getServerById } from '@/lib/servers';
 import { canManageUser } from '@/lib/access-control';
 
 export async function POST(request) {
   try {
-    const { userId, serverId, name, password } = await request.json();
+    const { userId, serverId, name, password, embyConnectEmail } = await request.json();
 
     // Validaciones
     if (!userId || !serverId) {
@@ -23,10 +23,13 @@ export async function POST(request) {
       );
     }
 
-    // Al menos uno de los campos debe estar presente
-    if (!name && !password) {
+    // Al menos uno de los campos debe estar presente para actualizar
+    // embyConnectEmail puede ser string vacío para desvincular, así que solo verificamos si es undefined
+    const hasFieldToUpdate = name || password || (embyConnectEmail !== undefined);
+
+    if (!hasFieldToUpdate) {
       return NextResponse.json(
-        { error: 'Debe proporcionar al menos el nombre o la contraseña' },
+        { error: 'Debe proporcionar al menos un campo para actualizar' },
         { status: 400 }
       );
     }
@@ -54,6 +57,24 @@ export async function POST(request) {
     if (password) userData.password = password;
 
     const updatedUser = await updateUser(userId, userData, server);
+
+    // Manejar vinculación/desvinculación de Emby Connect
+    if (embyConnectEmail !== undefined) {
+      try {
+        if (embyConnectEmail && embyConnectEmail.trim().length > 0) {
+          // Vincular con Emby Connect
+          await linkEmbyConnect(userId, embyConnectEmail.trim(), server);
+          console.log(`Usuario ${userId} vinculado con Emby Connect: ${embyConnectEmail}`);
+        } else {
+          // Desvincular de Emby Connect (email vacío)
+          await unlinkEmbyConnect(userId, server);
+          console.log(`Usuario ${userId} desvinculado de Emby Connect`);
+        }
+      } catch (err) {
+        console.error('Error al gestionar Emby Connect:', err);
+        // No fallar la actualización si falla la vinculación
+      }
+    }
 
     return NextResponse.json({
       success: true,

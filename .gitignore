@@ -39,8 +39,10 @@ lerna-debug.log*
 # Local env files
 .env
 .env*.local
+.env.local
 .env.development
 .env.production
+.env.docker
 
 # Data files (SQLite database and user data)
 /data/
@@ -63,3 +65,22 @@ next-env.d.ts
 
 # Turbopack
 .turbo
+
+# Logs
+*.log
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+*.temp
+*~.nib
+*~
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Sensitive data
+/config.local.js
+/config.local.json

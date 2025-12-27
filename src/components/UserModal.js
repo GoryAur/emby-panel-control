@@ -17,6 +17,7 @@ export default function UserModal({
   const [formData, setFormData] = useState({
     name: '',
     password: '',
+    embyConnectEmail: '',
     serverId: '',
     expirationDate: '',
     isAdmin: false,
@@ -41,8 +42,9 @@ export default function UserModal({
   useEffect(() => {
     if (mode === 'edit' && user) {
       setFormData({
-        name: user.Name || '',
+        name: user.Name || user.name || '',
         password: '',
+        embyConnectEmail: user.embyConnectEmail || '',
         serverId: user.serverId || '',
         expirationDate: '',
         isAdmin: false,
@@ -54,6 +56,7 @@ export default function UserModal({
       setFormData({
         name: '',
         password: '',
+        embyConnectEmail: '',
         serverId: defaultServerId,
         expirationDate: '',
         isAdmin: false,
@@ -131,6 +134,7 @@ export default function UserModal({
     setFormData({
       name: '',
       password: '',
+      embyConnectEmail: '',
       serverId: servers[0]?.id || '',
       expirationDate: '',
       isAdmin: false,
@@ -215,8 +219,7 @@ export default function UserModal({
 
           <div className="form-group">
             <label htmlFor="password">
-              {mode === 'create' ? 'Contraseña' : 'Nueva contraseña'}
-              {mode === 'create' && ' (opcional)'}
+              {mode === 'create' ? 'Contraseña (opcional)' : 'Nueva contraseña'}
             </label>
             <input
               id="password"
@@ -238,6 +241,23 @@ export default function UserModal({
             )}
             <small className="help-text">
               ℹ️ Mínimo 6 caracteres
+            </small>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="embyConnectEmail">
+              Email de Emby Connect (opcional)
+            </label>
+            <input
+              id="embyConnectEmail"
+              type="email"
+              className="input"
+              value={formData.embyConnectEmail}
+              onChange={(e) => setFormData({ ...formData, embyConnectEmail: e.target.value })}
+              placeholder="usuario@ejemplo.com"
+            />
+            <small className="help-text">
+              ℹ️ Vincula el usuario con una cuenta de Emby Connect existente para acceso remoto
             </small>
           </div>
 

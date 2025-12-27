@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createUser } from '@/lib/emby';
+import { createUser, linkEmbyConnect } from '@/lib/emby';
 import { getServerById } from '@/lib/servers';
 import { setExpiration, setUserCreator } from '@/lib/subscriptions';
 import { getCurrentUser } from '@/lib/access-control';
 
 export async function POST(request) {
   try {
-    const { name, password, serverId, expirationDate, isAdmin, enabledLibraries, userType } = await request.json();
+    const { name, password, embyConnectEmail, serverId, expirationDate, isAdmin, enabledLibraries, userType } = await request.json();
 
     // Validaciones
     if (!name || !serverId) {
@@ -51,6 +51,18 @@ export async function POST(request) {
     };
 
     const newUser = await createUser(userData, server);
+
+    // Vincular con Emby Connect si se proporcionó email
+    if (embyConnectEmail && embyConnectEmail.trim().length > 0 && newUser.Id) {
+      try {
+        await linkEmbyConnect(newUser.Id, embyConnectEmail.trim(), server);
+        console.log(`Usuario ${newUser.Id} vinculado con Emby Connect: ${embyConnectEmail}`);
+      } catch (err) {
+        console.error('Error al vincular Emby Connect:', err);
+        // No fallar la creación si falla la vinculación
+        // El usuario puede vincularse manualmente después
+      }
+    }
 
     // Obtener usuario actual (quien está creando el usuario)
     const currentUser = await getCurrentUser();

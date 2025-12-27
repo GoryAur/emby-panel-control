@@ -29,7 +29,28 @@ export async function GET() {
       const userSessions = sessions.filter(
         s => s.UserId === user.Id && s.serverId === user.serverId
       );
-      const isOnline = userSessions.length > 0;
+
+      // Filtrar sesiones realmente activas (con actividad reciente o reproduciendo)
+      const now = new Date();
+      const activeSessions = userSessions.filter(session => {
+        // Si está reproduciendo contenido, está definitivamente activo
+        if (session.NowPlayingItem) {
+          return true;
+        }
+
+        // Si tiene LastActivityDate, verificar si fue en los últimos 5 minutos
+        if (session.LastActivityDate) {
+          const lastActivity = new Date(session.LastActivityDate);
+          const minutesSinceActivity = (now - lastActivity) / 1000 / 60;
+          return minutesSinceActivity < 5; // Activo en los últimos 5 minutos
+        }
+
+        // Si no tiene LastActivityDate pero SupportsRemoteControl=true, considerarlo potencialmente activo
+        // Esto puede incluir apps abiertas pero en idle
+        return session.SupportsRemoteControl === true;
+      });
+
+      const isOnline = activeSessions.length > 0;
       const daysInactive = getDaysInactive(user.LastActivityDate);
 
       return {
@@ -42,14 +63,21 @@ export async function GET() {
         isDisabled: user.Policy?.IsDisabled || false,
         isAdministrator: user.Policy?.IsAdministrator || false,
         isOnline,
-        activeSessions: userSessions.map(s => ({
+        activeSessions: activeSessions.map(s => ({
           id: s.Id,
           deviceName: s.DeviceName,
           client: s.Client,
           applicationVersion: s.ApplicationVersion,
           serverId: s.serverId,
+          nowPlaying: s.NowPlayingItem ? {
+            name: s.NowPlayingItem.Name,
+            type: s.NowPlayingItem.Type,
+          } : null,
+          lastActivity: s.LastActivityDate,
         })),
         daysInactive,
+        hasEmbyConnect: !!(user.ConnectUserId || user.ConnectUserName),
+        embyConnectEmail: user.ConnectUserName || null,
       };
     });
 

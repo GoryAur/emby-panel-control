@@ -589,3 +589,68 @@ export async function deleteUser(userId, server = null) {
     throw error;
   }
 }
+
+/**
+ * Vincula un usuario de Emby con Emby Connect usando su email
+ */
+export async function linkEmbyConnect(userId, email, server = null) {
+  try {
+    const client = server ? createEmbyClient(server) : embyClient;
+    const apiKey = server?.apiKey || process.env.EMBY_API_KEY;
+
+    console.log(`Vinculando usuario ${userId} con Emby Connect: ${email}`);
+
+    const response = await client.post(
+      `/Users/${userId}/Connect/Link`,
+      null,
+      {
+        params: {
+          ConnectUsername: email,
+          api_key: apiKey,
+        }
+      }
+    );
+
+    console.log(`✓ Usuario vinculado con Emby Connect`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error al vincular usuario ${userId} con Emby Connect:`, error.message);
+    if (error.response?.status === 400) {
+      throw new Error('Email de Emby Connect inválido o ya está en uso');
+    }
+    if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Desvincula un usuario de Emby Connect
+ */
+export async function unlinkEmbyConnect(userId, server = null) {
+  try {
+    const client = server ? createEmbyClient(server) : embyClient;
+    const apiKey = server?.apiKey || process.env.EMBY_API_KEY;
+
+    console.log(`Desvinculando usuario ${userId} de Emby Connect`);
+
+    const response = await client.delete(
+      `/Users/${userId}/Connect/Link`,
+      {
+        params: {
+          api_key: apiKey,
+        }
+      }
+    );
+
+    console.log(`✓ Usuario desvinculado de Emby Connect`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error al desvincular usuario ${userId} de Emby Connect:`, error.message);
+    if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+    throw error;
+  }
+}

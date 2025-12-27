@@ -305,6 +305,9 @@
     height: 100vh;
     border-radius: 0;
     animation: slideUp 0.3s ease-out;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   @keyframes slideUp {
@@ -340,7 +343,10 @@
 
   .modal-form {
     padding: 16px;
-    padding-bottom: 100px; /* Space for fixed actions */
+    padding-bottom: 180px; /* Increased space for fixed actions and all fields */
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
   }
 
   .form-group {
@@ -386,7 +392,9 @@
   }
 
   .libraries-list {
-    max-height: 180px;
+    max-height: 150px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .help-text {

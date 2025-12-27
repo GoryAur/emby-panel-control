@@ -36,11 +36,11 @@ RUN adduser -D abc
 WORKDIR /app
 
 # Copiar SOLO lo necesario desde builder
-COPY --from=builder --chown=abc:abc /app/package*.json ./
-COPY --from=builder --chown=abc:abc /app/jsconfig.json ./
-COPY --from=builder --chown=abc:abc /app/node_modules ./node_modules
-COPY --from=builder --chown=abc:abc /app/.next ./.next
-COPY --from=builder --chown=abc:abc /app/src ./src
+# En modo standalone, copiar desde .next/standalone
+COPY --from=builder --chown=abc:abc /app/.next/standalone ./
+# Copiar archivos estáticos que standalone no incluye
+COPY --from=builder --chown=abc:abc /app/.next/static ./.next/static
+COPY --from=builder --chown=abc:abc /app/public ./public
 
 # Crear directorio de datos
 RUN mkdir -p /app/data && chown -R abc:abc /app/data
@@ -57,5 +57,5 @@ ENV NODE_ENV=production \
     HOSTNAME="0.0.0.0" \
     NEXT_TELEMETRY_DISABLED=1
 
-# Iniciar aplicación
-CMD ["npm", "start"]
+# Iniciar aplicación en modo standalone
+CMD ["node", "server.js"]

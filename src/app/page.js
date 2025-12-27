@@ -21,9 +21,11 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchData = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const [usersRes, subsRes, serversRes] = await Promise.all([
@@ -39,7 +41,9 @@ export default function Home() {
       if (usersRes.ok) {
         setUsers(usersData);
       } else {
-        setError(usersData.error || 'Error al cargar usuarios');
+        if (!silent) {
+          setError(usersData.error || 'Error al cargar usuarios');
+        }
       }
 
       if (subsRes.ok) {
@@ -50,15 +54,27 @@ export default function Home() {
         setServers(serversData.servers);
       }
     } catch (err) {
-      setError('Error de conexión con el servidor');
+      if (!silent) {
+        setError('Error de conexión con el servidor');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     fetchData();
     fetchCurrentUser();
+
+    // Auto-refresh cada 30 segundos para mantener usuarios en línea actualizados
+    // Usa modo silencioso para no mostrar skeleton cada vez
+    const intervalId = setInterval(() => {
+      fetchData(true); // silent = true
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -152,7 +168,10 @@ export default function Home() {
   return (
     <div className="container">
       <header className="header">
-        <h1>Panel de Control - Emby</h1>
+        <div className="header-title">
+          <img src="/android-chrome-192x192.png" alt="Emby Logo" className="header-logo" />
+          <h1>Panel de Control - Emby</h1>
+        </div>
         <div className="header-actions">
           <button className="btn btn-icon" onClick={toggleDarkMode} title={darkMode ? 'Modo claro' : 'Modo oscuro'}>
             {darkMode ? '☀️' : '🌙'}

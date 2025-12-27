@@ -294,6 +294,7 @@ export default function UserTable({ users, subscriptions, servers, onRefresh }) 
         serverId: userToEdit.serverId,
         name: formData.name,
         password: formData.password || undefined,
+        embyConnectEmail: formData.embyConnectEmail,
       }),
     });
 
@@ -487,6 +488,11 @@ export default function UserTable({ users, subscriptions, servers, onRefresh }) 
                 <div className="user-card-title">
                   <div className="user-card-name">
                     {user.name}
+                    {user.hasEmbyConnect && (
+                      <span className="emby-connect-icon" title={`Vinculado a Emby Connect${user.embyConnectEmail ? `: ${user.embyConnectEmail}` : ''}`}>
+                        ☁️
+                      </span>
+                    )}
                     {user.isAdministrator && (
                       <span className="badge badge-admin">Admin</span>
                     )}
@@ -652,6 +658,11 @@ export default function UserTable({ users, subscriptions, servers, onRefresh }) 
                   <td>
                     <div className="user-info">
                       <strong>{user.name}</strong>
+                      {user.hasEmbyConnect && (
+                        <span className="emby-connect-icon" title={`Vinculado a Emby Connect${user.embyConnectEmail ? `: ${user.embyConnectEmail}` : ''}`}>
+                          ☁️
+                        </span>
+                      )}
                       {user.isAdministrator && (
                         <span className="badge badge-admin">Admin</span>
                       )}
