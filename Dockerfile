@@ -33,6 +33,9 @@ FROM node:24-alpine
 # Crear usuario abc
 RUN adduser -D abc
 
+# Instalar dependencias necesarias para runtime
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
 # Copiar SOLO lo necesario desde builder

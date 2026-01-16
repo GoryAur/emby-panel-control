@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import './login.css';
+import { authService } from '@/services/auth';
+import { User, Lock, ArrowRight, AlertCircle, Loader2, Disc } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { motion } from 'framer-motion';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,21 +18,17 @@ export default function LoginPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
-  // Verificar si ya está autenticado
   useEffect(() => {
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/auth/me');
-      if (response.ok) {
-        router.push('/');
-      }
+      await authService.getCurrentUser();
+      router.push('/');
     } catch (err) {
-      // No autenticado, mostrar login
+      // Not authenticated
     }
   };
 
@@ -36,123 +38,120 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        router.push('/');
-      } else {
-        setError(data.error || 'Error al iniciar sesión');
-      }
+      await authService.login(formData.username, formData.password);
+      router.push('/');
     } catch (err) {
-      setError('Error de conexión. Verifica tu red.');
+      setError(err.message || 'Acceso Denegado');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-background">
-        <div className="login-blob blob-1"></div>
-        <div className="login-blob blob-2"></div>
-        <div className="login-blob blob-3"></div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black selection:bg-primary/30 selection:text-primary">
+      {/* Cyberpunk Grid Background */}
+      <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black pointer-events-none" />
 
-      <div className="login-card">
-        <div className="login-header">
-          <h1>Panel de Control</h1>
-          <p>Emby Server Manager</p>
-        </div>
+      {/* Primary Glitch Blobs */}
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-primary/20 rounded-full blur-[100px] animate-pulse" />
+      <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-primary/10 rounded-full blur-[100px] animate-pulse delay-1000" />
 
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && (
-            <div className="login-error">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 8V12M12 16H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span>{error}</span>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-md z-10"
+      >
+        <Card className="backdrop-blur-xl bg-black/40 border-primary/20 shadow-[0_0_50px_-12px_rgba(0,227,72,0.25)]">
+          <CardHeader className="text-center space-y-4 pb-2">
+            <div className="mx-auto w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mb-2 border border-primary/20 shadow-[0_0_20px_rgba(0,227,72,0.2)]">
+              <Disc className="w-10 h-10 text-primary animate-spin-slow" />
             </div>
-          )}
-
-          <div className="form-field">
-            <label htmlFor="username">Usuario</label>
-            <div className="input-wrapper">
-              <svg className="input-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <input
-                id="username"
-                type="text"
-                placeholder="Ingresa tu usuario"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                required
-                autoFocus
-                autoComplete="username"
-                suppressHydrationWarning
-              />
+            <div className="space-y-1">
+              <CardTitle className="text-3xl font-bold tracking-tighter text-white">
+                PANEL<span className="text-primary">EMBY</span>
+              </CardTitle>
+              <CardDescription className="text-gray-400 font-mono text-xs uppercase tracking-[0.2em]">
+                Punto de Acceso
+              </CardDescription>
             </div>
-          </div>
+          </CardHeader>
 
-          <div className="form-field">
-            <label htmlFor="password">Contraseña</label>
-            <div className="input-wrapper">
-              <svg className="input-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 15V17M6 21H18C19.1046 21 20 20.1046 20 19V13C20 11.8954 19.1046 11 18 11H6C4.89543 11 4 11.8954 4 13V19C4 20.1046 4.89543 21 6 21ZM16 11V7C16 5.93913 15.5786 4.92172 14.8284 4.17157C14.0783 3.42143 13.0609 3 12 3C10.9391 3 9.92172 3.42143 9.17157 4.17157C8.42143 4.92172 8 5.93913 8 7V11H16Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Ingresa tu contraseña"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                autoComplete="current-password"
-                suppressHydrationWarning
-              />
-              <button
-                type="button"
-                className="toggle-password"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="flex items-center gap-3 p-4 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm"
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="font-medium">{error}</span>
+                </motion.div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-xs uppercase tracking-wider text-gray-500">Usuario</Label>
+                <div className="relative group">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-primary transition-colors" />
+                  <Input
+                    id="username"
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    className="pl-10 bg-black/50 border-white/10 focus:border-primary/50 font-mono tracking-wide"
+                    placeholder="INGRESE ID..."
+                    required
+                    autoFocus
+                    autoComplete="username"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" classname="text-xs uppercase tracking-wider text-gray-500">Contraseña</Label>
+                <div className="relative group">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-primary transition-colors" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="pl-10 bg-black/50 border-white/10 focus:border-primary/50 font-mono tracking-wide"
+                    placeholder="••••••••"
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                variant="cyber"
+                className="w-full h-12 text-sm mt-4 group relative overflow-hidden"
+                disabled={loading}
               >
-                {showPassword ? (
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.875 18.825C13.26 18.94 12.64 19 12 19C7 19 2.73 15.11 1 10C2.11 6.82 4.26 4.17 7.05 2.67M10.59 4.22C11.05 4.08 11.52 4 12 4C17 4 21.27 7.89 23 13C22.18 15.32 20.79 17.35 18.97 18.93M9.9 9.9C9.33 10.47 9 11.23 9 12C9 13.66 10.34 15 12 15C12.77 15 13.53 14.67 14.1 14.1M3 3L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                <div className="absolute inset-0 bg-primary/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300" />
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    AUTENTICANDO...
+                  </>
                 ) : (
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  <>
+                    <span>INICIAR SESIÓN</span>
+                    <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </>
                 )}
-              </button>
-            </div>
-          </div>
-
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? (
-              <>
-                <span className="spinner"></span>
-                <span>Iniciando sesión...</span>
-              </>
-            ) : (
-              <>
-                <span>Iniciar Sesión</span>
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </>
-            )}
-          </button>
-        </form>
-      </div>
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center border-t border-white/5 py-4">
+            <p className="text-xs text-gray-600 font-mono">CONEXIÓN SEGURA v4.0</p>
+          </CardFooter>
+        </Card>
+      </motion.div>
     </div>
   );
 }

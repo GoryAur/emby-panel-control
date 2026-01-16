@@ -16,18 +16,45 @@ export async function POST(request) {
       );
     }
 
-    // Validar que el nombre no esté vacío
+    // Validar que el nombre no este vacio
     if (name.trim().length === 0) {
       return NextResponse.json(
-        { error: 'El nombre de usuario no puede estar vacío' },
+        { error: 'El nombre de usuario no puede estar vacio' },
         { status: 400 }
       );
     }
 
-    // Validar contraseña si se proporciona
+    // Validar nombre minimo 3 caracteres
+    if (name.trim().length < 3) {
+      return NextResponse.json(
+        { error: 'El nombre de usuario debe tener al menos 3 caracteres' },
+        { status: 400 }
+      );
+    }
+
+    // Validar contrasena si se proporciona
     if (password && password.length < 6) {
       return NextResponse.json(
-        { error: 'La contraseña debe tener al menos 6 caracteres' },
+        { error: 'La contrasena debe tener al menos 6 caracteres' },
+        { status: 400 }
+      );
+    }
+
+    // Validar fecha de vencimiento obligatoria
+    if (!expirationDate) {
+      return NextResponse.json(
+        { error: 'La fecha de vencimiento es obligatoria' },
+        { status: 400 }
+      );
+    }
+
+    // Validar que la fecha sea futura
+    const expDate = new Date(expirationDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (expDate < today) {
+      return NextResponse.json(
+        { error: 'La fecha de vencimiento debe ser futura' },
         { status: 400 }
       );
     }
@@ -45,7 +72,7 @@ export async function POST(request) {
     const userData = {
       name: name.trim(),
       password: password || '', // Password vacía si no se proporciona
-      copyFromTemplate: userType || 'Basico', // Copiar configuración del tipo de usuario seleccionado
+      copyFromTemplate: userType || '1 Pantalla', // Copiar configuración del tipo de usuario seleccionado
       isAdmin: isAdmin || false,
       enabledLibraries: enabledLibraries || 'all', // Por defecto todas las bibliotecas
     };
@@ -77,13 +104,13 @@ export async function POST(request) {
       }
     }
 
-    // Si se proporciona fecha de vencimiento, crearla
-    if (expirationDate && newUser.Id) {
+    // Establecer fecha de vencimiento (obligatoria)
+    if (newUser.Id) {
       try {
         await setExpiration(newUser.Id, serverId, expirationDate, currentUser?.id);
       } catch (err) {
         console.error('Error al establecer fecha de vencimiento:', err);
-        // No fallar la creación del usuario si falla la suscripción
+        // No fallar la creacion del usuario si falla la suscripcion
       }
     }
 

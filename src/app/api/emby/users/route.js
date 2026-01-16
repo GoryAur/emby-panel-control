@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAllUsersFromMultipleServers, getActiveSessionsFromMultipleServers, getDaysInactive } from '@/lib/emby';
 import { getEnabledServers } from '@/lib/servers';
 import { filterUsersByRole } from '@/lib/access-control';
+import { getAllSubscriptions } from '@/lib/subscriptions';
+import { getAllUsers } from '@/lib/auth';
 
 export async function GET() {
   try {
@@ -23,7 +25,17 @@ export async function GET() {
     // Filtrar usuarios según el rol del usuario actual (admin ve todos, reseller solo los suyos)
     const users = await filterUsersByRole(nonAdminUsers);
 
-    // Enriquecer información de usuarios con sesiones activas
+    // Obtener datos auxiliares
+    const subscriptions = getAllSubscriptions();
+    const panelUsers = getAllUsers();
+
+    // Crear mapa de ID -> Nombre para usuarios del panel
+    const panelUsersMap = {};
+    panelUsers.forEach(u => {
+      panelUsersMap[u.id] = u.name;
+    });
+
+    // Enriquecer información de usuarios con sesiones activas y creador
     const enrichedUsers = users.map(user => {
       // Las sesiones deben coincidir por UserId Y serverId
       const userSessions = sessions.filter(
@@ -53,15 +65,26 @@ export async function GET() {
       const isOnline = activeSessions.length > 0;
       const daysInactive = getDaysInactive(user.LastActivityDate);
 
+      // Obtener info del creador
+      const subKey = `${user.serverId}__${user.Id}`;
+      const subscription = subscriptions[subKey];
+      let creatorName = 'Sistema';
+
+      if (subscription?.createdBy) {
+        creatorName = panelUsersMap[subscription.createdBy] || 'Sistema';
+      }
+
       return {
         id: user.Id,
         name: user.Name,
         serverId: user.serverId,
         serverName: user.serverName,
+        creator: creatorName,
         lastActivityDate: user.LastActivityDate,
         lastLoginDate: user.LastLoginDate,
         isDisabled: user.Policy?.IsDisabled || false,
         isAdministrator: user.Policy?.IsAdministrator || false,
+        simultaneousStreamLimit: user.Policy?.SimultaneousStreamLimit || 0,
         isOnline,
         activeSessions: activeSessions.map(s => ({
           id: s.Id,

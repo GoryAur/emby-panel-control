@@ -1,794 +1,386 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { embyService } from '@/services/emby';
+import { authService } from '@/services/auth';
+import {
+  Search, Plus, X, Calendar, Pencil, UserX, UserCheck,
+  Trash2, Square, Monitor, Cloud, SlidersHorizontal, Users, User2, RefreshCw,
+  MessageSquare, AlertTriangle, MonitorX
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 import UserModal from './UserModal';
+import { toast } from 'sonner';
 
 export default function UserTable({ users, subscriptions, servers, onRefresh }) {
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
-  const [expirationDate, setExpirationDate] = useState('');
-
-  // Estados para modales CRUD
+  const [userToEdit, setUserToEdit] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [userToEdit, setUserToEdit] = useState(null);
 
-  // Estados para filtros
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [subscriptionFilter, setSubscriptionFilter] = useState('all');
   const [serverFilter, setServerFilter] = useState('all');
+  const [creatorFilter, setCreatorFilter] = useState('all');
+  const [screenFilter, setScreenFilter] = useState('all');
 
-  // Estados para sistema de resellers
   const [currentUser, setCurrentUser] = useState(null);
-  const [panelUsers, setPanelUsers] = useState([]);
 
-  // Cargar usuario actual y usuarios del panel
   useEffect(() => {
     fetchCurrentUser();
-    fetchPanelUsers();
   }, []);
 
   const fetchCurrentUser = async () => {
     try {
-      const response = await fetch('/api/auth/me');
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentUser(data.user);
-      }
+      const data = await authService.getCurrentUser();
+      setCurrentUser(data.user);
     } catch (err) {
-      console.error('Error al cargar usuario actual:', err);
+      console.error(err);
     }
   };
 
-  const fetchPanelUsers = async () => {
-    try {
-      const response = await fetch('/api/panel/users');
-      if (response.ok) {
-        const data = await response.json();
-        setPanelUsers(data.users || []);
-      }
-    } catch (err) {
-      console.error('Error al cargar usuarios del panel:', err);
-    }
-  };
-
-  const isAdmin = currentUser?.role === 'admin';
-
-  const showMessage = (text, type = 'success') => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage(null), 5000);
-  };
-
-  // Obtener clave de suscripción
   const getSubKey = (userId, serverId) => `${serverId}__${userId}`;
 
-  // Obtener nombre del creador
-  const getCreatorName = (userId, serverId) => {
-    const subKey = getSubKey(userId, serverId);
-    const subscription = subscriptions[subKey];
+  // Unique lists for filters
+  const creators = useMemo(() => {
+    const list = [...new Set(users.map(u => u.creator || 'Admin'))].filter(Boolean);
+    return list.sort();
+  }, [users]);
 
-    if (!subscription?.createdBy) {
-      return 'N/A';
-    }
-
-    const creator = panelUsers.find(u => u.id === subscription.createdBy);
-    return creator?.name || 'Desconocido';
-  };
-
-  // Filtrado de usuarios
+  // Filter Logic
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
-      // Filtro de búsqueda por nombre
       const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // Filtro por servidor
       const matchesServer = serverFilter === 'all' || user.serverId === serverFilter;
+      const matchesCreator = creatorFilter === 'all' || (user.creator || 'Admin') === creatorFilter;
 
-      // Filtro por estado
+      // Screens Logic
+      const maxScreens = user.policy?.SimultaneousStreamLimit || user.simultaneousStreamLimit || 0;
+      let matchesScreens = true;
+      if (screenFilter !== 'all') {
+        if (screenFilter === '1') matchesScreens = maxScreens === 1;
+        else if (screenFilter === '3') matchesScreens = maxScreens === 3;
+        else if (screenFilter === '5') matchesScreens = maxScreens >= 5;
+        else if (screenFilter === 'unlimited') matchesScreens = maxScreens === 0;
+      }
+
       let matchesStatus = true;
       if (statusFilter === 'online') matchesStatus = user.isOnline && !user.isDisabled;
       else if (statusFilter === 'offline') matchesStatus = !user.isOnline && !user.isDisabled;
       else if (statusFilter === 'disabled') matchesStatus = user.isDisabled;
 
-      // Filtro por suscripción
       let matchesSubscription = true;
       const subKey = getSubKey(user.id, user.serverId);
 
-      // Los administradores de Emby no se filtran por suscripción
-      if (!user.isAdministrator) {
-        if (subscriptionFilter === 'active') {
-          const sub = subscriptions[subKey];
-          if (sub?.expirationDate) {
-            const expDate = new Date(sub.expirationDate);
-            const now = new Date();
-            const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
-            matchesSubscription = daysLeft > 7;
-          } else {
-            matchesSubscription = false;
-          }
-        } else if (subscriptionFilter === 'expiring') {
-          const sub = subscriptions[subKey];
-          if (sub?.expirationDate) {
-            const expDate = new Date(sub.expirationDate);
-            const now = new Date();
-            const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
-            matchesSubscription = daysLeft >= 0 && daysLeft <= 7;
-          } else {
-            matchesSubscription = false;
-          }
-        } else if (subscriptionFilter === 'expired') {
-          const sub = subscriptions[subKey];
-          if (sub?.expirationDate) {
-            const expDate = new Date(sub.expirationDate);
-            const now = new Date();
-            matchesSubscription = expDate < now;
-          } else {
-            matchesSubscription = false;
-          }
-        } else if (subscriptionFilter === 'none') {
-          matchesSubscription = !subscriptions[subKey]?.expirationDate;
+      if (!user.isAdministrator && subscriptionFilter !== 'all') {
+        const sub = subscriptions[subKey];
+        const hasSub = sub?.expirationDate;
+
+        if (subscriptionFilter === 'none') matchesSubscription = !hasSub;
+        else if (hasSub) {
+          const expDate = new Date(sub.expirationDate);
+          const now = new Date();
+          const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+
+          if (subscriptionFilter === 'active') matchesSubscription = daysLeft > 7;
+          else if (subscriptionFilter === 'expiring') matchesSubscription = daysLeft >= 0 && daysLeft <= 7;
+          else if (subscriptionFilter === 'expired') matchesSubscription = daysLeft < 0;
+        } else {
+          matchesSubscription = false;
         }
       }
 
-      return matchesSearch && matchesServer && matchesStatus && matchesSubscription;
+      return matchesSearch && matchesServer && matchesCreator && matchesScreens && matchesStatus && matchesSubscription;
     });
-  }, [users, subscriptions, searchTerm, statusFilter, subscriptionFilter, serverFilter]);
+  }, [users, subscriptions, searchTerm, statusFilter, subscriptionFilter, serverFilter, creatorFilter, screenFilter]);
 
-  const handleStopPlayback = async (sessionId, serverId, userName, deviceName) => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/emby/stop-playback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, serverId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(`Reproducción detenida en ${deviceName}`);
-        onRefresh();
-      } else {
-        showMessage(data.error || 'Error al detener reproducción', 'error');
-      }
-    } catch (error) {
-      showMessage('Error al detener reproducción', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Actions
   const handleToggleUser = async (userId, serverId, userName, enable) => {
-    const action = enable ? 'habilitar' : 'deshabilitar';
-    const message = enable
-      ? `¿Habilitar a ${userName}?`
-      : `¿Deshabilitar a ${userName}?\n\nEsto cerrará todas sus sesiones activas y no podrá iniciar sesión hasta que lo habilites nuevamente.`;
-    if (!confirm(message)) return;
+    if (!confirm(enable ? `¿Habilitar a ${userName}?` : `¿Deshabilitar a ${userName}?`)) return;
 
     setLoading(true);
     try {
-      const response = await fetch('/api/emby/toggle-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, serverId, enable }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const successMsg = enable
-          ? `Usuario ${userName} habilitado exitosamente`
-          : `Usuario ${userName} deshabilitado y desconectado de todos sus dispositivos`;
-        showMessage(successMsg);
-        onRefresh();
-      } else {
-        showMessage(data.error || 'Error al cambiar estado del usuario', 'error');
-      }
-    } catch (error) {
-      showMessage('Error al cambiar estado del usuario', 'error');
+      await embyService.toggleUser(userId, serverId, enable);
+      toast.success(enable ? 'Usuario habilitado' : 'Usuario deshabilitado');
+      onRefresh();
+    } catch {
+      toast.error('Error al cambiar estado');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditExpiration = (userId, serverId) => {
-    const subKey = getSubKey(userId, serverId);
-    const sub = subscriptions[subKey];
-    setEditingUser({ userId, serverId });
-    if (sub?.expirationDate) {
-      const date = new Date(sub.expirationDate);
-      setExpirationDate(date.toISOString().split('T')[0]);
-    } else {
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 30);
-      setExpirationDate(futureDate.toISOString().split('T')[0]);
-    }
-  };
-
-  const handleSaveExpiration = async (userId, serverId, userName) => {
-    if (!expirationDate) {
-      showMessage('Selecciona una fecha de vencimiento', 'error');
-      return;
-    }
-
-    setLoading(true);
+  const handleCreateUser = async (data) => {
     try {
-      const response = await fetch('/api/emby/set-expiration', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, serverId, expirationDate }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(`Fecha de vencimiento actualizada para ${userName}`);
-        setEditingUser(null);
-        onRefresh();
-      } else {
-        showMessage(data.error || 'Error al actualizar fecha', 'error');
-      }
-    } catch (error) {
-      showMessage('Error al actualizar fecha', 'error');
-    } finally {
-      setLoading(false);
+      await embyService.createUser(data);
+      onRefresh();
+    } catch (err) {
+      throw new Error(err.message || 'Error');
     }
   };
 
-  const handleExtendSubscription = async (userId, serverId, userName, months = 1) => {
-    setLoading(true);
+  const handleEditUser = async (data) => {
     try {
-      const response = await fetch('/api/emby/extend-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, serverId, months }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(`Suscripción de ${userName} extendida ${months} mes(es)`);
-        onRefresh();
-      } else {
-        showMessage(data.error || 'Error al extender suscripción', 'error');
-      }
-    } catch (error) {
-      showMessage('Error al extender suscripción', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Funciones CRUD de usuarios
-
-  const handleCreateUser = async (formData) => {
-    const response = await fetch('/api/emby/create-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Error al crear usuario');
-    }
-
-    showMessage(`Usuario ${formData.name} creado exitosamente`);
-    onRefresh();
-  };
-
-  const handleOpenEditModal = (user) => {
-    setUserToEdit(user);
-    setShowEditModal(true);
-  };
-
-  const handleEditUser = async (formData) => {
-    const response = await fetch('/api/emby/edit-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      await embyService.editUser({
         userId: userToEdit.id,
         serverId: userToEdit.serverId,
-        name: formData.name,
-        password: formData.password || undefined,
-        embyConnectEmail: formData.embyConnectEmail,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Error al editar usuario');
+        ...data
+      });
+      onRefresh();
+    } catch (err) {
+      throw new Error(err.message || 'Error');
     }
-
-    showMessage(`Usuario ${userToEdit.name} actualizado exitosamente`);
-    onRefresh();
   };
 
   const handleDeleteUser = async (userId, serverId, userName) => {
-    const confirmed = confirm(`¿Estás seguro de eliminar al usuario "${userName}"?\n\nEsta acción no se puede deshacer.`);
-
-    if (!confirmed) return;
-
+    if (!confirm(`¿ELIMINAR a ${userName}?`)) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/emby/delete-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, serverId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(`Usuario ${userName} eliminado exitosamente`);
-        onRefresh();
-      } else {
-        showMessage(data.error || 'Error al eliminar usuario', 'error');
-      }
-    } catch (error) {
-      showMessage('Error al eliminar usuario', 'error');
+      await embyService.deleteUser(userId, serverId);
+      toast.success('Usuario eliminado');
+      onRefresh();
+    } catch {
+      toast.error('Error al eliminar');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('all');
-    setSubscriptionFilter('all');
-    setServerFilter('all');
+  const handleExtend = async (userId, serverId, userName) => {
+    if (!confirm(`¿Extender 1 Mes a ${userName}?`)) return;
+    setLoading(true);
+    try {
+      await embyService.extendSubscription(userId, serverId, 1);
+      toast.success('Suscripción extendida 1 mes');
+      onRefresh();
+    } catch {
+      toast.error('Error al extender');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStopPlayback = async (sessionId, serverId, deviceName) => {
+    if (!confirm(`¿Detener reproducción en ${deviceName}?`)) return;
+    try {
+      await embyService.stopPlayback(sessionId, serverId);
+      toast.success(`Reproducción detenida en ${deviceName}`);
+      onRefresh();
+    } catch {
+      toast.error('Error al detener');
+    }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Sin fecha';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES');
+    return new Date(dateString).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
   };
-
-  const getStatusBadge = (user) => {
-    if (user.isDisabled) {
-      return <span className="badge badge-disabled">Deshabilitado</span>;
-    }
-    if (user.isOnline) {
-      return <span className="badge badge-online">En línea</span>;
-    }
-    return <span className="badge badge-offline">Desconectado</span>;
-  };
-
-  const getExpirationStatus = (userId, serverId) => {
-    const subKey = getSubKey(userId, serverId);
-    const sub = subscriptions[subKey];
-    if (!sub?.expirationDate) {
-      return <span className="badge badge-warning">Sin suscripción</span>;
-    }
-
-    const now = new Date();
-    const expDate = new Date(sub.expirationDate);
-    const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
-
-    if (daysLeft < 0) {
-      return <span className="badge badge-expired">Vencida ({Math.abs(daysLeft)} días)</span>;
-    } else if (daysLeft <= 7) {
-      return <span className="badge badge-expiring">Vence en {daysLeft} días</span>;
-    } else {
-      return <span className="badge badge-active">Activa ({daysLeft} días)</span>;
-    }
-  };
-
-  const hasActiveFilters = searchTerm || statusFilter !== 'all' || subscriptionFilter !== 'all' || serverFilter !== 'all';
 
   return (
-    <>
-      {message && (
-        <div className={`message message-${message.type}`}>
-          {message.text}
-        </div>
-      )}
-
-      <div className="filters-container">
-        <div className="search-box">
-          <input
-            type="text"
-            placeholder="🔍 Buscar por nombre..."
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-card/30 p-4 rounded-xl border border-white/5">
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar usuario..."
+            className="pl-9 bg-black/50 border-white/10"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input input-search"
+            onChange={e => setSearchTerm(e.target.value)}
           />
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowCreateModal(true)}
-            disabled={loading || servers.length === 0}
-            title="Crear nuevo usuario en Emby"
-          >
-            ➕ Crear Usuario
-          </button>
         </div>
 
-        <div className="filters-group">
-          {servers.length > 1 && (
-            <div className="filter-item">
-              <label>Servidor:</label>
-              <select
-                value={serverFilter}
-                onChange={(e) => setServerFilter(e.target.value)}
-                className="input input-select"
-              >
-                <option value="all">Todos</option>
-                {servers.map(server => (
-                  <option key={server.id} value={server.id}>{server.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="filter-item">
-            <label>Estado:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input input-select"
-            >
-              <option value="all">Todos</option>
-              <option value="online">En línea</option>
-              <option value="offline">Desconectados</option>
-              <option value="disabled">Deshabilitados</option>
-            </select>
-          </div>
-
-          <div className="filter-item">
-            <label>Suscripción:</label>
-            <select
-              value={subscriptionFilter}
-              onChange={(e) => setSubscriptionFilter(e.target.value)}
-              className="input input-select"
-            >
-              <option value="all">Todas</option>
-              <option value="active">Activas</option>
-              <option value="expiring">Por vencer</option>
-              <option value="expired">Vencidas</option>
-              <option value="none">Sin suscripción</option>
-            </select>
-          </div>
-
-          {hasActiveFilters && (
-            <button
-              className="btn btn-secondary btn-clear-filters"
-              onClick={handleClearFilters}
-            >
-              Limpiar filtros
-            </button>
-          )}
-        </div>
-
-        <div className="results-count">
-          Mostrando <strong>{filteredUsers.length}</strong> de <strong>{users.length}</strong> usuarios
+        <div className="flex gap-2 w-full md:w-auto">
+          <Button variant="outline" size="icon" onClick={onRefresh} disabled={loading} className="shrink-0">
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          </Button>
+          <Button variant="cyber" onClick={() => setShowCreateModal(true)} disabled={loading} className="w-full md:w-auto text-white">
+            <Plus className="h-4 w-4 mr-2" /> CREAR USUARIO
+          </Button>
         </div>
       </div>
 
-      {/* Vista Mobile: Cards */}
-      <div className="user-cards mobile-only">
-        {filteredUsers.length === 0 ? (
-          <div className="no-results">
-            <p>No se encontraron usuarios con los filtros seleccionados</p>
-            {hasActiveFilters && (
-              <button className="btn btn-primary" onClick={handleClearFilters}>
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-        ) : (
-          filteredUsers.map(user => (
-            <div key={`${user.serverId}-${user.id}`} className={`user-card ${user.isDisabled ? 'disabled' : ''}`}>
-              {/* Header */}
-              <div className="user-card-header">
-                <div className="user-card-title">
-                  <div className="user-card-name">
-                    {user.name}
-                    {user.hasEmbyConnect && (
-                      <span className="emby-connect-icon" title={`Vinculado a Emby Connect${user.embyConnectEmail ? `: ${user.embyConnectEmail}` : ''}`}>
-                        ☁️
-                      </span>
-                    )}
-                    {user.isAdministrator && (
-                      <span className="badge badge-admin">Admin</span>
-                    )}
-                  </div>
-                  <div className="user-card-status">
-                    {getStatusBadge(user)}
-                    {getExpirationStatus(user.id, user.serverId)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="user-card-body">
-                {servers.length > 1 && (
-                  <div className="user-card-row">
-                    <span className="user-card-row-label">Servidor:</span>
-                    <span className="user-card-row-value">
-                      <span className="server-badge">{user.serverName}</span>
-                    </span>
-                  </div>
-                )}
-
-                <div className="user-card-row">
-                  <span className="user-card-row-label">Vencimiento:</span>
-                  <span className="user-card-row-value">
-                    {editingUser && editingUser.userId === user.id && editingUser.serverId === user.serverId ? (
-                      <div className="edit-expiration">
-                        <input
-                          type="date"
-                          value={expirationDate}
-                          onChange={(e) => setExpirationDate(e.target.value)}
-                          className="input input-date"
-                        />
-                        <button
-                          className="btn btn-small btn-success"
-                          onClick={() => handleSaveExpiration(user.id, user.serverId, user.name)}
-                          disabled={loading}
-                        >
-                          ✓
-                        </button>
-                        <button
-                          className="btn btn-small btn-secondary"
-                          onClick={() => setEditingUser(null)}
-                          disabled={loading}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        {formatDate(subscriptions[getSubKey(user.id, user.serverId)]?.expirationDate)}
-                        {!user.isAdministrator && (
-                          <button
-                            className="btn btn-small btn-info"
-                            onClick={() => handleEditExpiration(user.id, user.serverId)}
-                            disabled={loading}
-                            style={{ marginLeft: '8px' }}
-                          >
-                            📅
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </span>
-                </div>
-
-                {isAdmin && (
-                  <div className="user-card-row">
-                    <span className="user-card-row-label">Creado por:</span>
-                    <span className="user-card-row-value">{getCreatorName(user.id, user.serverId)}</span>
-                  </div>
-                )}
-
-                {user.activeSessions.length > 0 && (
-                  <div className="user-card-sessions">
-                    <div className="user-card-sessions-title">Sesiones Activas</div>
-                    {user.activeSessions.map(session => (
-                      <div key={session.id} className="user-card-session-item">
-                        <div className="user-card-session-info">
-                          <div>{session.deviceName}</div>
-                          <div>{session.client}</div>
-                        </div>
-                        <button
-                          className="btn btn-small btn-warning"
-                          onClick={() => handleStopPlayback(session.id, user.serverId, user.name, session.deviceName)}
-                          disabled={loading}
-                          title="Detener reproducción"
-                        >
-                          ⏹
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              {!user.isAdministrator && (
-                <div className="user-card-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleExtendSubscription(user.id, user.serverId, user.name, 1)}
-                    disabled={loading}
-                  >
-                    +1 mes
-                  </button>
-                  <button
-                    className="btn btn-info"
-                    onClick={() => handleOpenEditModal(user)}
-                    disabled={loading}
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    className={`btn ${user.isDisabled ? 'btn-success' : 'btn-warning'}`}
-                    onClick={() => handleToggleUser(user.id, user.serverId, user.name, user.isDisabled)}
-                    disabled={loading}
-                  >
-                    {user.isDisabled ? '✓ Habilitar' : '✕ Deshabilitar'}
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => handleDeleteUser(user.id, user.serverId, user.name)}
-                    disabled={loading}
-                  >
-                    🗑️ Eliminar
-                  </button>
-                </div>
-              )}
-            </div>
-          ))
+      {/* Filters Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="bg-card/50 h-9 font-medium"><SelectValue placeholder="Estado" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los Estados</SelectItem>
+            <SelectItem value="online">En Línea</SelectItem>
+            <SelectItem value="offline">Offline</SelectItem>
+            <SelectItem value="disabled">Deshabilitados</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={subscriptionFilter} onValueChange={setSubscriptionFilter}>
+          <SelectTrigger className="bg-card/50 h-9 font-medium"><SelectValue placeholder="Suscripción" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las Subs</SelectItem>
+            <SelectItem value="active">Activas</SelectItem>
+            <SelectItem value="expiring">Por Vencer</SelectItem>
+            <SelectItem value="expired">Vencidas</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+          <SelectTrigger className="bg-card/50 h-9 font-medium"><SelectValue placeholder="Creado Por" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Cualquier Creador</SelectItem>
+            {creators.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={screenFilter} onValueChange={setScreenFilter}>
+          <SelectTrigger className="bg-card/50 h-9 font-medium"><SelectValue placeholder="Pantallas" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Cualquier Limite</SelectItem>
+            <SelectItem value="1">1 Pantalla</SelectItem>
+            <SelectItem value="3">3 Pantallas</SelectItem>
+            <SelectItem value="5">5+ Pantallas</SelectItem>
+            <SelectItem value="unlimited">Ilimitadas</SelectItem>
+          </SelectContent>
+        </Select>
+        {servers.length > 1 && (
+          <Select value={serverFilter} onValueChange={setServerFilter}>
+            <SelectTrigger className="bg-card/50 h-9 font-medium"><SelectValue placeholder="Servidor" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los Servidores</SelectItem>
+              {servers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         )}
       </div>
 
-      {/* Vista Desktop: Tabla */}
-      <div className="table-container desktop-only">
-        {filteredUsers.length === 0 ? (
-          <div className="no-results">
-            <p>No se encontraron usuarios con los filtros seleccionados</p>
-            {hasActiveFilters && (
-              <button className="btn btn-primary" onClick={handleClearFilters}>
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-        ) : (
-          <table className="user-table">
-            <thead>
-              <tr>
-                <th>Usuario</th>
-                {servers.length > 1 && <th>Servidor</th>}
-                <th>Estado</th>
-                <th>Suscripción</th>
-                <th>Vencimiento</th>
-                {isAdmin && <th>Creado por</th>}
-                <th>Sesiones activas</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map(user => (
-                <tr key={`${user.serverId}-${user.id}`} className={user.isDisabled ? 'disabled-row' : ''}>
-                  <td>
-                    <div className="user-info">
-                      <strong>{user.name}</strong>
-                      {user.hasEmbyConnect && (
-                        <span className="emby-connect-icon" title={`Vinculado a Emby Connect${user.embyConnectEmail ? `: ${user.embyConnectEmail}` : ''}`}>
-                          ☁️
+      <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur overflow-hidden shadow-2xl">
+        <Table>
+          <TableHeader className="bg-white/5 border-b border-primary/20">
+            <TableRow className="border-white/5 hover:bg-white/5">
+              <TableHead className="text-primary font-bold tracking-wider w-[200px]">USUARIO</TableHead>
+              <TableHead className="text-white/70">ESTADO</TableHead>
+              <TableHead className="text-white/70">PANTALLAS</TableHead>
+              <TableHead className="text-white/70">CREADO POR</TableHead>
+              <TableHead className="text-white/70">SUSCRIPCIÓN</TableHead>
+              <TableHead className="text-white/70 w-[200px]">DISPOSITIVOS ACTUALES</TableHead>
+              <TableHead className="text-right text-primary font-bold">ACCIONES</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredUsers.map((user) => {
+              const subKey = getSubKey(user.id, user.serverId);
+              const sub = subscriptions[subKey];
+              const maxScreens = user.policy?.SimultaneousStreamLimit || user.simultaneousStreamLimit || '∞';
+
+              return (
+                <TableRow key={subKey} className="border-white/5 hover:bg-primary/5 transition-colors group">
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className={cn("font-medium text-base text-white", user.isDisabled && "text-muted-foreground line-through decoration-destructive")}>
+                        {user.name}
+                      </span>
+                      {user.isAdministrator && <span className="text-[10px] text-warning uppercase tracking-widest font-bold">ADMIN</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {user.isDisabled ? (
+                      <Badge variant="destructive" className="font-mono">DESHABILITADO</Badge>
+                    ) : user.isOnline ? (
+                      <Badge className="bg-green-500/20 text-green-500 border-green-500/50 hover:bg-green-500/30 animate-pulse-fast font-mono">ONLINE</Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs font-mono">OFFLINE</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Monitor className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-mono text-sm">{maxScreens}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                      {user.creator || 'Sistema'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {user.isAdministrator ? (
+                      <span className="text-xs text-muted-foreground">N/A</span>
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] text-muted-foreground">Vence:</span>
+                        <span className={cn(
+                          "text-sm font-mono font-medium",
+                          new Date(sub?.expirationDate) < new Date() ? "text-destructive" : "text-green-500"
+                        )}>
+                          {formatDate(sub?.expirationDate)}
                         </span>
-                      )}
-                      {user.isAdministrator && (
-                        <span className="badge badge-admin">Admin</span>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-2">
+                      {user.activeSessions && user.activeSessions.length > 0 ? (
+                        user.activeSessions.map(s => (
+                          <div key={s.id} className="flex items-center justify-between text-xs bg-black/50 p-1.5 rounded border border-white/10 group/session hover:border-primary/50 transition-colors">
+                            <div className="truncate max-w-[120px]" title={s.deviceName}>
+                              <span className="text-white block">{s.deviceName}</span>
+                              <span className="text-muted-foreground text-[10px]">{s.client}</span>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover/session:opacity-100 transition-opacity">
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                className="h-5 w-5"
+                                onClick={() => handleStopPlayback(s.id, user.serverId, s.deviceName)}
+                                title="Detener Reproducción"
+                              >
+                                <Square className="h-3 w-3 fill-current" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Sin actividad</span>
                       )}
                     </div>
-                  </td>
-                  {servers.length > 1 && (
-                    <td>
-                      <span className="server-badge">{user.serverName}</span>
-                    </td>
-                  )}
-                  <td>{getStatusBadge(user)}</td>
-                  <td>{getExpirationStatus(user.id, user.serverId)}</td>
-                  <td>
-                    {editingUser && editingUser.userId === user.id && editingUser.serverId === user.serverId ? (
-                      <div className="edit-expiration">
-                        <input
-                          type="date"
-                          value={expirationDate}
-                          onChange={(e) => setExpirationDate(e.target.value)}
-                          className="input input-date"
-                        />
-                        <button
-                          className="btn btn-small btn-success"
-                          onClick={() => handleSaveExpiration(user.id, user.serverId, user.name)}
-                          disabled={loading}
-                        >
-                          ✓
-                        </button>
-                        <button
-                          className="btn btn-small btn-secondary"
-                          onClick={() => setEditingUser(null)}
-                          disabled={loading}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="expiration-display">
-                        <span>{formatDate(subscriptions[getSubKey(user.id, user.serverId)]?.expirationDate)}</span>
-                        {!user.isAdministrator && (
-                          <button
-                            className="btn btn-small btn-info"
-                            onClick={() => handleEditExpiration(user.id, user.serverId)}
-                            disabled={loading}
-                            title="Editar fecha"
-                          >
-                            📅
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  {isAdmin && (
-                    <td>
-                      <span className="creator-name">{getCreatorName(user.id, user.serverId)}</span>
-                    </td>
-                  )}
-                  <td>
-                    {user.activeSessions.length > 0 ? (
-                      <div className="sessions">
-                        {user.activeSessions.map(session => (
-                          <div key={session.id} className="session-item">
-                            <span>{session.deviceName} ({session.client})</span>
-                            <button
-                              className="btn btn-small btn-warning"
-                              onClick={() => handleStopPlayback(session.id, user.serverId, user.name, session.deviceName)}
-                              disabled={loading}
-                              title="Detener reproducción actual"
-                            >
-                              ⏹
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="no-sessions">Sin sesiones</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="actions">
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {!user.isAdministrator && (
                         <>
-                          <button
-                            className="btn btn-small btn-primary"
-                            onClick={() => handleExtendSubscription(user.id, user.serverId, user.name, 1)}
-                            disabled={loading}
-                            title="Extender 1 mes"
-                          >
-                            +1 mes
-                          </button>
-                          <button
-                            className="btn btn-small btn-info"
-                            onClick={() => handleOpenEditModal(user)}
-                            disabled={loading}
-                            title="Editar usuario"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            className={`btn btn-small ${user.isDisabled ? 'btn-success' : 'btn-warning'}`}
-                            onClick={() => handleToggleUser(user.id, user.serverId, user.name, user.isDisabled)}
-                            disabled={loading}
-                            title={user.isDisabled ? 'Habilitar usuario' : 'Deshabilitar usuario'}
-                          >
-                            {user.isDisabled ? '✓' : '✕'}
-                          </button>
-                          <button
-                            className="btn btn-small btn-danger"
-                            onClick={() => handleDeleteUser(user.id, user.serverId, user.name)}
-                            disabled={loading}
-                            title="Eliminar usuario permanentemente"
-                          >
-                            🗑️
-                          </button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-info hover:bg-info/10 border border-transparent hover:border-info/20" onClick={() => { setUserToEdit(user); setShowEditModal(true); }} title="Editar">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className={cn("h-8 w-8 border border-transparent", user.isDisabled ? "hover:text-green-500 hover:bg-green-500/10 hover:border-green-500/20" : "hover:text-orange-500 hover:bg-orange-500/10 hover:border-orange-500/20")} onClick={() => handleToggleUser(user.id, user.serverId, user.name, user.isDisabled)} title={user.isDisabled ? "Habilitar" : "Deshabilitar"}>
+                            {user.isDisabled ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20" onClick={() => handleDeleteUser(user.id, user.serverId, user.name)} title="Eliminar">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </>
                       )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filteredUsers.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="h-40 text-center text-muted-foreground flex-col gap-2">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <AlertTriangle className="h-8 w-8 text-muted-foreground/50" />
+                    <span>No se encontraron usuarios</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Modal para crear usuario */}
       <UserModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -798,19 +390,15 @@ export default function UserTable({ users, subscriptions, servers, onRefresh }) 
         currentUser={currentUser}
       />
 
-      {/* Modal para editar usuario */}
       <UserModal
         isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setUserToEdit(null);
-        }}
+        onClose={() => setShowEditModal(false)}
         onSubmit={handleEditUser}
         servers={servers}
         mode="edit"
         user={userToEdit}
         currentUser={currentUser}
       />
-    </>
+    </div>
   );
 }

@@ -1,8 +1,10 @@
+import './tailwind.css';
 import './globals.css';
+import { Providers } from '@/components/Providers';
 
 export const metadata = {
   title: 'Panel de Control - Emby',
-  description: 'Panel de administración para gestionar usuarios de Emby',
+  description: 'Panel de administracion para gestionar usuarios de Emby',
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -18,22 +20,12 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es" suppressHydrationWarning className="dark-mode">
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                const savedMode = localStorage.getItem('darkMode');
-                if (savedMode === 'false') {
-                  document.documentElement.classList.remove('dark-mode');
-                }
-              } catch (e) {}
-            `,
-          }}
-        />
-      </head>
-      <body suppressHydrationWarning>{children}</body>
+    <html lang="es" className="dark dark-mode">
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
   );
 }

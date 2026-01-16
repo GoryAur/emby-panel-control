@@ -1,19 +1,67 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import useSwipeToClose from '@/hooks/useSwipeToClose';
-import './UserModal.css';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  X, Plus, Pencil, AlertCircle, Check, Loader2, Info, Monitor, Cloud, Calendar,
+  Eye, EyeOff, Shield
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+
+// Quick date selection buttons
+function QuickDateButtons({ onSelect, currentDate }) {
+  const options = [
+    { label: '1 Mes', days: 30 },
+    { label: '3 Meses', days: 90 },
+    { label: '6 Meses', days: 180 },
+    { label: '1 Año', days: 365 },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(({ label, days }) => {
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        const dateStr = date.toISOString().split('T')[0];
+        const isSelected = currentDate === dateStr;
+
+        return (
+          <Button
+            key={days}
+            type="button"
+            variant={isSelected ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onSelect(dateStr)}
+            className="h-7 text-xs"
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function UserModal({
   isOpen,
   onClose,
   onSubmit,
   servers,
-  mode = 'create', // 'create' o 'edit'
-  user = null, // Usuario a editar (solo para modo edit)
-  currentUser = null, // Usuario actual para verificar permisos
+  mode = 'create',
+  user = null,
+  currentUser = null,
 }) {
-  const { modalRef, isSwiping, swipeDistance } = useSwipeToClose(onClose);
   const [formData, setFormData] = useState({
     name: '',
     password: '',
@@ -21,76 +69,76 @@ export default function UserModal({
     serverId: '',
     expirationDate: '',
     isAdmin: false,
-    userType: 'Basico', // 'Basico' o '1 Pantalla'
-    libraryAccess: 'all', // 'all' o 'select'
+    userType: '1 Pantalla',
+    libraryAccess: 'all',
     selectedLibraries: [],
   });
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [passwordError, setPasswordError] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [libraries, setLibraries] = useState([]);
   const [loadingLibraries, setLoadingLibraries] = useState(false);
 
-  // Cargar bibliotecas cuando cambia el servidor
+  // Default expiration logic
+  const defaultExpirationDate = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0];
+  }, []);
+
+  // Initialize form
+  useEffect(() => {
+    if (isOpen) {
+      if (mode === 'edit' && user) {
+        setFormData({
+          name: user.Name || user.name || '',
+          password: '', // Don't show password
+          embyConnectEmail: user.embyConnectEmail || '',
+          serverId: user.serverId || '',
+          expirationDate: '', // Expiration handled separately in table usually, but can be here if needed
+          isAdmin: false,
+          userType: '', // Could be fetched but usually separate
+          libraryAccess: 'all',
+          selectedLibraries: [],
+        });
+      } else {
+        // Create
+        setFormData({
+          name: '',
+          password: '',
+          embyConnectEmail: '',
+          serverId: servers[0]?.id || '',
+          expirationDate: defaultExpirationDate,
+          isAdmin: false,
+          userType: '1 Pantalla',
+          libraryAccess: 'all',
+          selectedLibraries: [],
+        });
+        if (servers[0]?.id) loadLibraries(servers[0].id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, mode, user]);
+
+  // Load libraries on server change
   useEffect(() => {
     if (formData.serverId && mode === 'create') {
       loadLibraries(formData.serverId);
     }
   }, [formData.serverId, mode]);
 
-  // Inicializar formulario
-  useEffect(() => {
-    if (mode === 'edit' && user) {
-      setFormData({
-        name: user.Name || user.name || '',
-        password: '',
-        embyConnectEmail: user.embyConnectEmail || '',
-        serverId: user.serverId || '',
-        expirationDate: '',
-        isAdmin: false,
-        libraryAccess: 'all',
-        selectedLibraries: [],
-      });
-    } else if (mode === 'create') {
-      const defaultServerId = servers[0]?.id || '';
-      setFormData({
-        name: '',
-        password: '',
-        embyConnectEmail: '',
-        serverId: defaultServerId,
-        expirationDate: '',
-        isAdmin: false,
-        userType: 'Basico',
-        libraryAccess: 'all',
-        selectedLibraries: [],
-      });
-      if (defaultServerId) {
-        loadLibraries(defaultServerId);
-      }
-    }
-  }, [mode, user, servers, isOpen]);
-
   const loadLibraries = async (serverId) => {
-    if (!serverId) return;
-
     setLoadingLibraries(true);
     try {
-      const response = await fetch('/api/emby/libraries', {
+      const res = await fetch('/api/emby/libraries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverId }),
+        body: JSON.stringify({ serverId })
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setLibraries(data.libraries || []);
-      } else {
-        console.error('Error al cargar bibliotecas:', data.error);
-        setLibraries([]);
-      }
-    } catch (err) {
-      console.error('Error al cargar bibliotecas:', err);
+      const data = await res.json();
+      setLibraries(res.ok ? data.libraries || [] : []);
+    } catch (e) {
+      console.error(e);
       setLibraries([]);
     } finally {
       setLoadingLibraries(false);
@@ -99,320 +147,176 @@ export default function UserModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setPasswordError(null);
     setLoading(true);
 
     try {
-      // Validar contraseña si se proporciona
-      if (formData.password && formData.password.length < 6) {
-        setPasswordError('La contraseña debe tener al menos 6 caracteres');
-        setLoading(false);
-        return;
-      }
-
-      // Preparar datos según el modo de acceso a bibliotecas
       const submitData = { ...formData };
       if (mode === 'create') {
-        if (formData.libraryAccess === 'all') {
-          submitData.enabledLibraries = 'all';
-        } else {
-          submitData.enabledLibraries = formData.selectedLibraries;
-        }
+        submitData.enabledLibraries = formData.libraryAccess === 'all' ? 'all' : formData.selectedLibraries;
       }
 
       await onSubmit(submitData);
-      handleClose();
+      onClose();
+      toast.success(mode === 'create' ? 'Usuario creado' : 'Usuario actualizado');
     } catch (err) {
-      setError(err.message || 'Error al procesar la solicitud');
+      toast.error(err.message || 'Error al guardar');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClose = () => {
-    setFormData({
-      name: '',
-      password: '',
-      embyConnectEmail: '',
-      serverId: servers[0]?.id || '',
-      expirationDate: '',
-      isAdmin: false,
-      userType: 'Basico',
-      libraryAccess: 'all',
-      selectedLibraries: [],
-    });
-    setError(null);
-    setPasswordError(null);
-    setLibraries([]);
-    onClose();
-  };
-
-  const handlePasswordChange = (e) => {
-    const newPassword = e.target.value;
-    setFormData({ ...formData, password: newPassword });
-
-    // Validar en tiempo real si hay contenido
-    if (newPassword && newPassword.length < 6) {
-      setPasswordError('La contraseña debe tener al menos 6 caracteres');
-    } else {
-      setPasswordError(null);
-    }
-  };
-
-  const toggleLibrary = (libraryId) => {
+  const toggleLibrary = (id) => {
     setFormData(prev => ({
       ...prev,
-      selectedLibraries: prev.selectedLibraries.includes(libraryId)
-        ? prev.selectedLibraries.filter(id => id !== libraryId)
-        : [...prev.selectedLibraries, libraryId]
+      selectedLibraries: prev.selectedLibraries.includes(id)
+        ? prev.selectedLibraries.filter(l => l !== id)
+        : [...prev.selectedLibraries, id]
     }));
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="modal-overlay swipeable-modal" onClick={handleClose}>
-      <div
-        ref={modalRef}
-        className={`modal-content ${isSwiping ? 'swiping' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          transform: isSwiping ? `translateY(${swipeDistance}px)` : 'translateY(0)',
-        }}
-      >
-        <div className="modal-header">
-          <h2>{mode === 'create' ? '➕ Crear Usuario' : '✏️ Editar Usuario'}</h2>
-          <button className="modal-close" onClick={handleClose} type="button">
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg border-primary/20 bg-black/90 backdrop-blur-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
+            {mode === 'create' ? <Plus className="h-5 w-5 text-primary" /> : <Pencil className="h-5 w-5 text-info" />}
+            {mode === 'create' ? 'Crear Nuevo Usuario' : 'Editar Usuario'}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === 'create' ? 'Ingresa los datos para registrar un nuevo usuario en Emby.' : `Modificando acceso para: ${user?.name}`}
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="modal-form">
-          {error && (
-            <div className="modal-error">
-              ⚠️ {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
 
-          <div className="form-group">
-            <label htmlFor="name">
-              Nombre de usuario *
-            </label>
-            <input
-              id="name"
-              type="text"
-              className="input"
+          {/* Name */}
+          <div className="space-y-2">
+            <Label>Nombre de Usuario</Label>
+            <Input
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
               disabled={mode === 'edit'}
-              placeholder="Ej: juan_perez"
-              autoFocus
-            />
-            {mode === 'edit' && (
-              <small className="help-text">
-                ℹ️ El nombre de usuario no se puede cambiar en Emby
-              </small>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">
-              {mode === 'create' ? 'Contraseña (opcional)' : 'Nueva contraseña'}
-            </label>
-            <input
-              id="password"
-              type="password"
-              className={`input ${passwordError ? 'input-error' : ''}`}
-              value={formData.password}
-              onChange={handlePasswordChange}
-              placeholder={mode === 'create' ? 'Sin contraseña' : 'Dejar vacío para no cambiar'}
-            />
-            {passwordError && (
-              <small className="error-text">
-                ⚠️ {passwordError}
-              </small>
-            )}
-            {!passwordError && formData.password && (
-              <small className="success-text">
-                ✓ Contraseña válida
-              </small>
-            )}
-            <small className="help-text">
-              ℹ️ Mínimo 6 caracteres
-            </small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="embyConnectEmail">
-              Email de Emby Connect (opcional)
-            </label>
-            <input
-              id="embyConnectEmail"
-              type="email"
-              className="input"
-              value={formData.embyConnectEmail}
-              onChange={(e) => setFormData({ ...formData, embyConnectEmail: e.target.value })}
-              placeholder="usuario@ejemplo.com"
-            />
-            <small className="help-text">
-              ℹ️ Vincula el usuario con una cuenta de Emby Connect existente para acceso remoto
-            </small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="serverId">
-              Servidor *
-            </label>
-            <select
-              id="serverId"
-              className="input-select"
-              value={formData.serverId}
-              onChange={(e) => setFormData({ ...formData, serverId: e.target.value })}
+              placeholder="Ej. JuanPerez"
+              className="font-mono"
               required
+            />
+          </div>
+
+          {/* Password */}
+          <div className="space-y-2">
+            <Label>{mode === 'create' ? 'Contraseña' : 'Nueva Contraseña (Opcional)'}</Label>
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                placeholder={mode === 'create' ? '••••••••' : 'Dejar vacío para mantener actual'}
+                className="pr-10 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Emby Connect */}
+          <div className="space-y-2">
+            <Label>Emby Connect Email (Opcional)</Label>
+            <Input
+              type="email"
+              value={formData.embyConnectEmail}
+              onChange={e => setFormData({ ...formData, embyConnectEmail: e.target.value })}
+              placeholder="usuario@email.com"
+              className="font-mono"
+            />
+          </div>
+
+          {/* Server Select */}
+          <div className="space-y-2">
+            <Label>Servidor</Label>
+            <Select
+              value={formData.serverId}
+              onValueChange={val => setFormData({ ...formData, serverId: val })}
               disabled={mode === 'edit'}
             >
-              {servers.length === 0 ? (
-                <option value="">No hay servidores disponibles</option>
-              ) : (
-                servers.map((server) => (
-                  <option key={server.id} value={server.id}>
-                    {server.name}
-                  </option>
-                ))
-              )}
-            </select>
-            {mode === 'edit' && (
-              <small className="help-text">
-                ℹ️ Los usuarios no se pueden mover entre servidores
-              </small>
-            )}
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un servidor" />
+              </SelectTrigger>
+              <SelectContent>
+                {servers.map(s => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
+          {/* Create Only Fields */}
           {mode === 'create' && (
             <>
-              <div className="form-group">
-                <label htmlFor="expirationDate">
-                  Fecha de vencimiento (opcional)
-                </label>
-                <input
-                  id="expirationDate"
-                  type="date"
-                  className="input-date"
-                  value={formData.expirationDate}
-                  onChange={(e) => setFormData({ ...formData, expirationDate: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                />
-                <small className="help-text">
-                  ℹ️ Puedes establecer esto después desde la tabla de usuarios
-                </small>
+              <div className="space-y-2">
+                <Label>Fecha de Vencimiento</Label>
+                <div className="space-y-2">
+                  <Input
+                    type="date"
+                    value={formData.expirationDate}
+                    onChange={e => setFormData({ ...formData, expirationDate: e.target.value })}
+                    required
+                  />
+                  <QuickDateButtons
+                    currentDate={formData.expirationDate}
+                    onSelect={d => setFormData({ ...formData, expirationDate: d })}
+                  />
+                </div>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="userType">
-                  Tipo de usuario *
-                </label>
-                <select
-                  id="userType"
-                  className="input-select"
+              <div className="space-y-2">
+                <Label>Tipo de Usuario / Pantallas</Label>
+                <Select
                   value={formData.userType}
-                  onChange={(e) => setFormData({ ...formData, userType: e.target.value })}
-                  required
+                  onValueChange={val => setFormData({ ...formData, userType: val })}
                 >
-                  <option value="Basico">Básico</option>
-                  <option value="1 Pantalla">1 Pantalla</option>
-                </select>
-                <small className="help-text">
-                  ℹ️ Se copiará la configuración y políticas del usuario plantilla seleccionado
-                </small>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1 Pantalla">1 Pantalla</SelectItem>
+                    <SelectItem value="3 Pantallas">3 Pantallas</SelectItem>
+                    <SelectItem value="5 Pantallas">5 Pantallas</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
+              {/* Admin Check */}
               {currentUser?.role === 'admin' && (
-                <div className="form-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={formData.isAdmin}
-                      onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked })}
-                    />
-                    <span>Administrador del servidor</span>
-                  </label>
-                  <small className="help-text">
-                    ℹ️ Los administradores tienen acceso completo a la configuración del servidor
-                  </small>
+                <div className="flex items-center space-x-2 py-2">
+                  <Checkbox
+                    id="isAdmin"
+                    checked={formData.isAdmin}
+                    onCheckedChange={c => setFormData({ ...formData, isAdmin: c })}
+                  />
+                  <Label htmlFor="isAdmin" className="cursor-pointer text-warning font-semibold">
+                    Acceso de Administrador
+                  </Label>
                 </div>
               )}
-
-              <div className="form-group">
-                <label>Acceso a bibliotecas</label>
-                <div className="radio-group">
-                  <label className="radio-label">
-                    <input
-                      type="radio"
-                      name="libraryAccess"
-                      value="all"
-                      checked={formData.libraryAccess === 'all'}
-                      onChange={(e) => setFormData({ ...formData, libraryAccess: e.target.value, selectedLibraries: [] })}
-                    />
-                    <span>Todas las bibliotecas</span>
-                  </label>
-                  <label className="radio-label">
-                    <input
-                      type="radio"
-                      name="libraryAccess"
-                      value="select"
-                      checked={formData.libraryAccess === 'select'}
-                      onChange={(e) => setFormData({ ...formData, libraryAccess: e.target.value })}
-                    />
-                    <span>Seleccionar específicas</span>
-                  </label>
-                </div>
-
-                {formData.libraryAccess === 'select' && (
-                  <div className="libraries-list">
-                    {loadingLibraries ? (
-                      <p className="loading-text">Cargando bibliotecas...</p>
-                    ) : libraries.length === 0 ? (
-                      <p className="no-libraries">No hay bibliotecas disponibles</p>
-                    ) : (
-                      libraries.map(lib => (
-                        <label key={lib.id} className="checkbox-label library-item">
-                          <input
-                            type="checkbox"
-                            checked={formData.selectedLibraries.includes(lib.id)}
-                            onChange={() => toggleLibrary(lib.id)}
-                          />
-                          <span>{lib.name}</span>
-                          {lib.type && <span className="library-type">({lib.type})</span>}
-                        </label>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
             </>
           )}
 
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleClose}
-              disabled={loading}
-            >
+          <DialogFooter className="pt-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading || servers.length === 0}
-            >
-              {loading ? 'Procesando...' : mode === 'create' ? 'Crear Usuario' : 'Guardar Cambios'}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" variant="cyber" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {mode === 'create' ? 'Crear Usuario' : 'Guardar Cambios'}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { updateUser, linkEmbyConnect, unlinkEmbyConnect } from '@/lib/emby';
+import { updateUser, linkEmbyConnect, unlinkEmbyConnect, getUserByName, copyUserConfiguration } from '@/lib/emby';
 import { getServerById } from '@/lib/servers';
 import { canManageUser } from '@/lib/access-control';
 
 export async function POST(request) {
   try {
-    const { userId, serverId, name, password, embyConnectEmail } = await request.json();
+    const { userId, serverId, name, password, embyConnectEmail, userType } = await request.json();
 
     // Validaciones
     if (!userId || !serverId) {
@@ -25,7 +25,7 @@ export async function POST(request) {
 
     // Al menos uno de los campos debe estar presente para actualizar
     // embyConnectEmail puede ser string vacío para desvincular, así que solo verificamos si es undefined
-    const hasFieldToUpdate = name || password || (embyConnectEmail !== undefined);
+    const hasFieldToUpdate = name || password || (embyConnectEmail !== undefined) || userType;
 
     if (!hasFieldToUpdate) {
       return NextResponse.json(
@@ -73,6 +73,33 @@ export async function POST(request) {
       } catch (err) {
         console.error('Error al gestionar Emby Connect:', err);
         // No fallar la actualización si falla la vinculación
+      }
+    }
+
+    // Manejar cambio de tipo de usuario (cambiar límite de pantallas)
+    if (userType) {
+      try {
+        console.log(`Cambiando tipo de usuario a: ${userType}`);
+
+        // Buscar el usuario plantilla
+        const templateUser = await getUserByName(userType, server);
+        if (!templateUser) {
+          console.error(`Usuario plantilla "${userType}" no encontrado`);
+          return NextResponse.json(
+            { error: `Usuario plantilla "${userType}" no encontrado en el servidor` },
+            { status: 404 }
+          );
+        }
+
+        // Copiar configuración del usuario plantilla
+        await copyUserConfiguration(userId, templateUser.Id, server);
+        console.log(`✓ Configuración de "${userType}" copiada al usuario ${userId}`);
+      } catch (err) {
+        console.error('Error al cambiar tipo de usuario:', err);
+        return NextResponse.json(
+          { error: 'Error al copiar la configuración del tipo de usuario' },
+          { status: 500 }
+        );
       }
     }
 

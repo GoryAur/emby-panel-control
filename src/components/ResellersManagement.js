@@ -1,384 +1,161 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import './ResellersManagement.css';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { authService } from '@/services/auth';
 
 export default function ResellersManagement() {
   const [resellers, setResellers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
   const [editingReseller, setEditingReseller] = useState(null);
 
-  // Estados del formulario
   const [formData, setFormData] = useState({
+    name: '',
     username: '',
     password: '',
-    name: '',
   });
 
   useEffect(() => {
-    fetchResellers();
+    loadResellers();
   }, []);
 
-  const fetchResellers = async () => {
+  const loadResellers = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/panel/users');
-      if (response.ok) {
-        const data = await response.json();
-        // Filtrar solo resellers
-        setResellers(data.users.filter(u => u.role === 'reseller'));
-      } else {
-        showMessage('Error al cargar resellers', 'error');
-      }
-    } catch (err) {
-      console.error('Error al cargar resellers:', err);
-      showMessage('Error de conexión', 'error');
+      const data = await authService.getResellers();
+      setResellers(data.users || []);
+    } catch (error) {
+      toast.error(error.message || 'Error cargando revendedores');
     } finally {
       setLoading(false);
     }
   };
 
-  const showMessage = (text, type = 'success') => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage(null), 5000);
-  };
-
-  const handleCreateReseller = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const response = await fetch('/api/panel/create-reseller', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage('Reseller creado exitosamente');
-        setShowCreateModal(false);
-        setFormData({ username: '', password: '', name: '' });
-        fetchResellers();
+      if (editingReseller) {
+        await authService.updateReseller({ userId: editingReseller.id, ...formData });
       } else {
-        showMessage(data.error || 'Error al crear reseller', 'error');
+        await authService.createReseller(formData);
       }
-    } catch (err) {
-      console.error('Error al crear reseller:', err);
-      showMessage('Error de conexión', 'error');
+
+      toast.success(editingReseller ? 'Revendedor Actualizado' : 'Revendedor Creado');
+      setShowDialog(false);
+      setEditingReseller(null);
+      setFormData({ name: '', username: '', password: '' });
+      loadResellers();
+    } catch (error) {
+      toast.error(error.message || 'Error guardando revendedor');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditReseller = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/panel/edit-reseller', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: editingReseller.id,
-          ...formData,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage('Reseller actualizado exitosamente');
-        setShowEditModal(false);
-        setEditingReseller(null);
-        setFormData({ username: '', password: '', name: '' });
-        fetchResellers();
-      } else {
-        showMessage(data.error || 'Error al actualizar reseller', 'error');
-      }
-    } catch (err) {
-      console.error('Error al actualizar reseller:', err);
-      showMessage('Error de conexión', 'error');
-    } finally {
-      setLoading(false);
-    }
+  const handleDelete = async (reseller) => {
+    setEditingReseller(r);
+    setFormData({ username: r.username, password: '', name: r.name });
+    setShowDialog(true);
   };
 
-  const handleDeleteReseller = async (reseller) => {
-    if (!confirm(`¿Eliminar reseller "${reseller.name}"?\n\nNOTA: Los usuarios de Emby creados por este reseller NO se eliminarán, pero quedarán sin asignar.`)) {
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/panel/delete-reseller', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: reseller.id }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage('Reseller eliminado exitosamente');
-        fetchResellers();
-      } else {
-        showMessage(data.error || 'Error al eliminar reseller', 'error');
-      }
-    } catch (err) {
-      console.error('Error al eliminar reseller:', err);
-      showMessage('Error de conexión', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openEditModal = (reseller) => {
-    setEditingReseller(reseller);
-    setFormData({
-      username: reseller.username,
-      password: '',
-      name: reseller.name,
-    });
-    setShowEditModal(true);
-  };
-
-  const closeModals = () => {
-    setShowCreateModal(false);
-    setShowEditModal(false);
+  const openCreate = () => {
     setEditingReseller(null);
     setFormData({ username: '', password: '', name: '' });
+    setShowDialog(true);
   };
 
   return (
-    <div className="resellers-container">
-      {message && (
-        <div className={`message message-${message.type}`}>
-          {message.text}
+    <div className="space-y-6">
+      <div className="flex justify-between items-center bg-card/50 p-6 rounded-xl border border-white/5">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white mb-1">Revendedores</h2>
+          <p className="text-sm text-muted-foreground">Gestionar acceso de revendedores al panel</p>
         </div>
-      )}
-
-      <div className="resellers-header">
-        <h2>Gestión de Resellers</h2>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowCreateModal(true)}
-          disabled={loading}
-        >
-          ➕ Crear Reseller
-        </button>
+        <Button variant="cyber" onClick={openCreate} disabled={loading}>
+          <Plus className="mr-2 h-4 w-4" /> NUEVO REVENDEDOR
+        </Button>
       </div>
 
-      <div className="resellers-info">
-        <p>Los resellers pueden acceder al panel y crear/gestionar únicamente los usuarios de Emby que ellos crean.</p>
-        <p>Como administrador, puedes ver todos los usuarios y qué reseller creó cada uno.</p>
-      </div>
-
-      {loading && !showCreateModal && !showEditModal ? (
-        <div className="loading">Cargando resellers...</div>
-      ) : resellers.length === 0 ? (
-        <div className="no-results">
-          <p>No hay resellers creados todavía</p>
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowCreateModal(true)}
-          >
-            Crear primer reseller
-          </button>
-        </div>
-      ) : (
-        <table className="resellers-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Usuario</th>
-              <th>Fecha de creación</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resellers.map(reseller => (
-              <tr key={reseller.id}>
-                <td><strong>{reseller.name}</strong></td>
-                <td>@{reseller.username}</td>
-                <td>{new Date(reseller.createdAt).toLocaleDateString('es-ES')}</td>
-                <td className="actions-cell">
-                  <button
-                    className="btn btn-small btn-info"
-                    onClick={() => openEditModal(reseller)}
-                    disabled={loading}
-                    title="Editar reseller"
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    className="btn btn-small btn-danger"
-                    onClick={() => handleDeleteReseller(reseller)}
-                    disabled={loading}
-                    title="Eliminar reseller"
-                  >
-                    🗑️ Eliminar
-                  </button>
-                </td>
-              </tr>
+      <Card className="border-0 shadow-none bg-transparent">
+        <Table>
+          <TableHeader className="bg-white/5">
+            <TableRow className="border-white/5 hover:bg-white/5">
+              <TableHead className="text-white/70">NOMBRE</TableHead>
+              <TableHead className="text-white/70">USUARIO</TableHead>
+              <TableHead className="text-white/70">CREADO</TableHead>
+              <TableHead className="text-right text-primary">ACCIONES</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {resellers.map(r => (
+              <TableRow key={r.id} className="border-white/5 hover:bg-primary/5 transition-colors group">
+                <TableCell className="font-medium text-white">{r.name}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs font-mono">@{r.username}</Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {new Date(r.createdAt).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-info" onClick={() => openEdit(r)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-destructive" onClick={() => handleDelete(r)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      )}
+            {resellers.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                  NO SE ENCONTRARON REVENDEDORES
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
-      {/* Modal para crear reseller */}
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={closeModals}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>➕ Crear Reseller</h2>
-              <button className="modal-close" onClick={closeModals} type="button">
-                ✕
-              </button>
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingReseller ? 'Editar Revendedor' : 'Nuevo Revendedor'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nombre Completo</Label>
+              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required placeholder="Juan Perez" />
             </div>
-
-            <form onSubmit={handleCreateReseller} className="modal-form">
-              <div className="form-group">
-                <label htmlFor="name">Nombre completo *</label>
-                <input
-                  id="name"
-                  type="text"
-                  className="input"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  placeholder="Ej: Juan Pérez"
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="username">Nombre de usuario *</label>
-                <input
-                  id="username"
-                  type="text"
-                  className="input"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  required
-                  placeholder="Ej: juanperez"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="password">Contraseña *</label>
-                <input
-                  id="password"
-                  type="password"
-                  className="input"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  placeholder="Contraseña segura"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={closeModals}
-                  disabled={loading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Creando...' : 'Crear Reseller'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal para editar reseller */}
-      {showEditModal && editingReseller && (
-        <div className="modal-overlay" onClick={closeModals}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>✏️ Editar Reseller</h2>
-              <button className="modal-close" onClick={closeModals} type="button">
-                ✕
-              </button>
+            <div className="space-y-2">
+              <Label>Usuario</Label>
+              <Input value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} required disabled={!!editingReseller} placeholder="juanperez" />
             </div>
-
-            <form onSubmit={handleEditReseller} className="modal-form">
-              <div className="form-group">
-                <label htmlFor="edit-name">Nombre completo *</label>
-                <input
-                  id="edit-name"
-                  type="text"
-                  className="input"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  placeholder="Ej: Juan Pérez"
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="edit-username">Nombre de usuario</label>
-                <input
-                  id="edit-username"
-                  type="text"
-                  className="input"
-                  value={formData.username}
-                  disabled
-                  title="El nombre de usuario no se puede cambiar"
-                />
-                <small className="help-text">
-                  ℹ️ El nombre de usuario no se puede cambiar
-                </small>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="edit-password">Nueva contraseña (opcional)</label>
-                <input
-                  id="edit-password"
-                  type="password"
-                  className="input"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Dejar vacío para no cambiar"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={closeModals}
-                  disabled={loading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Guardando...' : 'Guardar Cambios'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="space-y-2">
+              <Label>{editingReseller ? 'Nueva Contraseña (Opcional)' : 'Contraseña'}</Label>
+              <Input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} required={!editingReseller} placeholder={editingReseller ? "Dejar vacío para mantener" : "Contraseña segura"} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setShowDialog(false)}>Cancelar</Button>
+              <Button type="submit" variant="cyber" disabled={loading}>Guardar</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

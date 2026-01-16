@@ -22,10 +22,15 @@ export function getDatabase() {
   }
 
   ensureDataDir();
-  db = new Database(DB_PATH);
+
+  // Abrir en modo lectura-escritura explícitamente
+  db = new Database(DB_PATH, { readonly: false, fileMustExist: false });
 
   // Habilitar claves foráneas
   db.pragma('foreign_keys = ON');
+
+  // Configurar WAL mode para mejor concurrencia
+  db.pragma('journal_mode = WAL');
 
   // Inicializar tablas si no existen
   initializeTables();

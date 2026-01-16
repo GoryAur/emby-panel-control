@@ -1,81 +1,11 @@
-# Dependencias
 node_modules
+.next
+.git
+.env
+.env.local
+.DS_Store
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-
-# Next.js
-.next
-out
-build
-.swc
-
-# Variables de entorno
-.env
-.env.*
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.docker
-
-# Datos locales (se montarán como volumen)
-data/
-*.db
-*.db-shm
-*.db-wal
-database.sqlite
-database.sqlite-shm
-database.sqlite-wal
-
-# Git
-.git
-.gitignore
-.gitattributes
-
-# Docker
-Dockerfile*
-.dockerignore
-docker-compose*.yml
-
-# IDEs
-.vscode
-.idea
-*.swp
-*.swo
-*~
-.editorconfig
-
-# Logs
-logs
-*.log
-
-# Sistema operativo
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Testing
-coverage
-.nyc_output
-test/
-tests/
-**/*.test.js
-**/*.spec.js
-
-# CI/CD
-.github
-.gitlab-ci.yml
-.travis.yml
-
-# Misc
-*.md
-!README.md
-README*.md
-CHANGELOG.md
-LICENSE
-.prettierrc
-.eslintrc*
-# NO excluir jsconfig.json - necesario para path aliases (@/*)
-# jsconfig.json
+data/*
+!data/.keep

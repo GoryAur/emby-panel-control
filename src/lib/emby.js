@@ -333,7 +333,7 @@ export async function getUserByName(userName, server = null) {
 /**
  * Copia la configuración de un usuario plantilla a un nuevo usuario
  */
-async function copyUserConfiguration(newUserId, templateUserId, server = null) {
+export async function copyUserConfiguration(newUserId, templateUserId, server = null) {
   try {
     const client = server ? createEmbyClient(server) : embyClient;
 
